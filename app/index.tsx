@@ -13,7 +13,7 @@ import { CameraViewfinder } from "@/src/components/CameraViewfinder";
 import { ControlButtons } from "@/src/components/ControlButtons";
 import { InstructionModal } from "@/src/components/InstructionModal";
 import { analyzeImage } from "@/src/services/aiService";
-import { speak } from "@/src/services/speechService";
+import { initAudio, speak } from "@/src/services/speechService";
 
 export default function Index() {
   const [permission, requestPermission] = useCameraPermissions();
@@ -22,13 +22,11 @@ export default function Index() {
   const [showInstructions, setShowInstructions] = useState(true);
   const [flash, setFlash] = useState<"on" | "off">("off");
   const [zoom, setZoom] = useState(0);
-
-  // New: A key to force the camera to restart if it freezes
-  const [cameraKey, setCameraKey] = useState(0);
+  const [cameraKey, setCameraKey] = useState(0); // For resetting live view
 
   const cameraRef = useRef<CameraView>(null);
 
-  // Manual Torch Fix for Web
+  // Manual Torch Control for Web browsers
   useEffect(() => {
     async function applyTorch() {
       if (Platform.OS === "web" && flash) {
@@ -44,7 +42,7 @@ export default function Index() {
             });
           }
         } catch (err) {
-          console.log("Torch toggle failed:", err);
+          console.log("Web torch failed:", err);
         }
       }
     }
@@ -53,10 +51,12 @@ export default function Index() {
 
   const handleScan = async () => {
     if (!cameraRef.current || isAnalyzing) return;
+
+    // CRITICAL: Unlock iOS audio immediately upon user tap
+    initAudio();
+
     try {
       setIsAnalyzing(true);
-
-      // On Web, sometimes pausing then taking the picture helps avoid freezes
       const photo = await cameraRef.current.takePictureAsync({
         base64: true,
         quality: 0.5,
@@ -64,22 +64,22 @@ export default function Index() {
 
       if (photo) {
         setCapturedImage(photo.uri);
+
+        // Call Gemini API
         const description = await analyzeImage(photo.base64!);
 
-        // Speak the description
+        // Narrate the result
         speak(description);
 
-        // --- THE FIX: RESUME LIVE VIEW ---
-        // We wait a moment for the photo to process, then "nudge" the camera
+        // Reset the live view after 4 seconds
         setTimeout(() => {
           setCapturedImage(null);
-          // Incrementing the key forces React to re-draw the camera component
-          setCameraKey((prev) => prev + 1);
-        }, 3000);
+          setCameraKey((prev) => prev + 1); // Re-mounts camera to unfreeze
+        }, 4000);
       }
     } catch (e) {
       console.error(e);
-      setCameraKey((prev) => prev + 1); // Reset on error too
+      setCameraKey((prev) => prev + 1);
     } finally {
       setIsAnalyzing(false);
     }
@@ -93,11 +93,12 @@ export default function Index() {
           onClose={() => setShowInstructions(false)}
         />
         <View style={styles.centeredContent}>
+          <Text style={styles.statusText}>Camera Permission Required</Text>
           <TouchableOpacity
             style={styles.permissionBtn}
             onPress={requestPermission}
           >
-            <Text style={styles.btnText}>ENABLE CAMERA</Text>
+            <Text style={styles.btnText}>ALLOW CAMERA</Text>
           </TouchableOpacity>
         </View>
       </View>
@@ -113,7 +114,7 @@ export default function Index() {
       />
 
       <CameraView
-        key={cameraKey} // This is the magic key that resets the live view
+        key={cameraKey}
         style={StyleSheet.absoluteFillObject}
         ref={cameraRef}
         facing="back"
@@ -124,6 +125,7 @@ export default function Index() {
       />
 
       <CameraViewfinder capturedImage={capturedImage} />
+
       <ControlButtons
         onScan={handleScan}
         isAnalyzing={isAnalyzing}
@@ -138,7 +140,13 @@ export default function Index() {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: "#000" },
-  centeredContent: { flex: 1, justifyContent: "center", alignItems: "center" },
-  permissionBtn: { backgroundColor: "#6200EE", padding: 20, borderRadius: 10 },
+  centeredContent: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+    padding: 20,
+  },
+  statusText: { color: "#fff", marginBottom: 20, textAlign: "center" },
+  permissionBtn: { backgroundColor: "#6200EE", padding: 20, borderRadius: 12 },
   btnText: { color: "#FFF", fontWeight: "bold" },
 });
