@@ -1,5 +1,13 @@
 # Learn more https://docs.github.com/en/get-started/getting-started-with-git/ignoring-files
 
+node_modules/
+.expo/
+dist/
+.env
+npm-debug.*
+yarn-debug.*
+yarn-error.*
+
 # dependencies
 node_modules/
 
