@@ -1,5 +1,12 @@
 import React from "react";
-import { Modal, StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import {
+  Modal,
+  Platform,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
+} from "react-native";
 
 interface Props {
   visible: boolean;
@@ -8,24 +15,21 @@ interface Props {
 
 export const InstructionModal = ({ visible, onClose }: Props) => {
   return (
-    <Modal visible={visible} transparent animationType="fade">
+    <Modal
+      visible={visible}
+      transparent
+      animationType="fade"
+      onRequestClose={onClose}
+    >
       <View style={styles.centeredView}>
         <View style={styles.modalView}>
-          <Text style={styles.title}>Welcome to Scene Narrator</Text>
+          <Text style={styles.title}>Scene Narrator AI</Text>
 
           <View style={styles.list}>
-            <Text style={styles.item}>
-              1. Grant camera access when prompted.
-            </Text>
-            <Text style={styles.item}>
-              2. Point your device at an object or scene.
-            </Text>
-            <Text style={styles.item}>
-              3. Tap `NARRATE` to hear the AI description.
-            </Text>
-            <Text style={styles.item}>
-              4. Ensure your volume is turned up! 🔊
-            </Text>
+            <Text style={styles.item}>• Allow camera access</Text>
+            <Text style={styles.item}>• Point at your surroundings</Text>
+            <Text style={styles.item}>• Tap NARRATE for audio</Text>
+            <Text style={styles.item}>• Turn up your volume 🔊</Text>
           </View>
 
           <TouchableOpacity style={styles.button} onPress={onClose}>
@@ -42,42 +46,34 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: "center",
     alignItems: "center",
-    backgroundColor: "rgba(0,0,0,0.85)",
+    backgroundColor: "rgba(0,0,0,0.9)",
+    // @ts-ignore
+    zIndex: Platform.OS === "web" ? 9999 : 1,
   },
   modalView: {
-    width: "80%",
-    backgroundColor: "#1A1A1A",
-    borderRadius: 20,
-    padding: 30,
+    width: "85%",
+    maxWidth: 400,
+    backgroundColor: "#121212",
+    borderRadius: 25,
+    padding: 35,
     alignItems: "center",
     borderWidth: 1,
     borderColor: "#333",
+    elevation: 5,
   },
   title: {
     color: "#6200EE",
-    fontSize: 22,
+    fontSize: 24,
     fontWeight: "900",
     marginBottom: 20,
-    textAlign: "center",
   },
-  list: {
-    marginBottom: 30,
-  },
-  item: {
-    color: "#CCC",
-    fontSize: 16,
-    marginVertical: 8,
-    lineHeight: 22,
-  },
+  list: { marginBottom: 30, width: "100%" },
+  item: { color: "#E0E0E0", fontSize: 17, marginVertical: 8 },
   button: {
     backgroundColor: "#6200EE",
-    paddingVertical: 15,
-    paddingHorizontal: 40,
+    paddingVertical: 16,
+    paddingHorizontal: 50,
     borderRadius: 30,
   },
-  buttonText: {
-    color: "#FFF",
-    fontWeight: "bold",
-    fontSize: 16,
-  },
+  buttonText: { color: "#FFF", fontWeight: "bold", fontSize: 16 },
 });
