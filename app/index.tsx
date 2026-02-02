@@ -1,8 +1,3 @@
-import { CameraViewfinder } from "@/src/components/CameraViewfinder";
-import { ControlButtons } from "@/src/components/ControlButtons";
-import { InstructionModal } from "@/src/components/InstructionModal";
-import { analyzeImage } from "@/src/services/aiService";
-import { speak } from "@/src/services/speechService";
 import { CameraView, useCameraPermissions } from "expo-camera";
 import { Stack } from "expo-router";
 import React, { useEffect, useRef, useState } from "react";
@@ -14,6 +9,12 @@ import {
   View,
 } from "react-native";
 
+import { CameraViewfinder } from "@/src/components/CameraViewfinder";
+import { ControlButtons } from "@/src/components/ControlButtons";
+import { InstructionModal } from "@/src/components/InstructionModal";
+import { analyzeImage } from "@/src/services/aiService";
+import { speak } from "@/src/services/speechService";
+
 export default function Index() {
   const [permission, requestPermission] = useCameraPermissions();
   const [isAnalyzing, setIsAnalyzing] = useState(false);
@@ -22,27 +23,28 @@ export default function Index() {
   const [flash, setFlash] = useState<"on" | "off">("off");
   const [zoom, setZoom] = useState(0);
 
+  // New: A key to force the camera to restart if it freezes
+  const [cameraKey, setCameraKey] = useState(0);
+
   const cameraRef = useRef<CameraView>(null);
 
-  // --- FIX 1: MANUAL WEB TORCH CONTROL ---
+  // Manual Torch Fix for Web
   useEffect(() => {
     async function applyTorch() {
       if (Platform.OS === "web" && flash) {
         try {
-          // This accesses the raw browser media stream to force the light on/off
           const stream = await navigator.mediaDevices.getUserMedia({
             video: { facingMode: "environment" },
           });
           const track = stream.getVideoTracks()[0];
-          const capabilities = (track as any).getCapabilities?.() || {};
-
-          if (capabilities.torch) {
+          const caps = (track as any).getCapabilities?.() || {};
+          if (caps.torch) {
             await (track as any).applyConstraints({
               advanced: [{ torch: flash === "on" }],
             });
           }
         } catch (err) {
-          console.warn("Torch not supported on this browser context", err);
+          console.log("Torch toggle failed:", err);
         }
       }
     }
@@ -53,6 +55,8 @@ export default function Index() {
     if (!cameraRef.current || isAnalyzing) return;
     try {
       setIsAnalyzing(true);
+
+      // On Web, sometimes pausing then taking the picture helps avoid freezes
       const photo = await cameraRef.current.takePictureAsync({
         base64: true,
         quality: 0.5,
@@ -61,10 +65,21 @@ export default function Index() {
       if (photo) {
         setCapturedImage(photo.uri);
         const description = await analyzeImage(photo.base64!);
-        speak(description); // --- FIX 2: priming handled inside service ---
+
+        // Speak the description
+        speak(description);
+
+        // --- THE FIX: RESUME LIVE VIEW ---
+        // We wait a moment for the photo to process, then "nudge" the camera
+        setTimeout(() => {
+          setCapturedImage(null);
+          // Incrementing the key forces React to re-draw the camera component
+          setCameraKey((prev) => prev + 1);
+        }, 3000);
       }
     } catch (e) {
       console.error(e);
+      setCameraKey((prev) => prev + 1); // Reset on error too
     } finally {
       setIsAnalyzing(false);
     }
@@ -98,10 +113,10 @@ export default function Index() {
       />
 
       <CameraView
+        key={cameraKey} // This is the magic key that resets the live view
         style={StyleSheet.absoluteFillObject}
         ref={cameraRef}
         facing="back"
-        // Force inline playback for iOS Safari
         // @ts-ignore
         props={{ playsInline: true }}
         enableTorch={flash === "on"}
